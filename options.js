@@ -5,7 +5,8 @@
 const DEFAULT_OPTIONS_FILE = "LeechBlockOptions.txt";
 
 const SUB_OPTIONS = {
-	"allowOverride" : "allowOverLock"
+	"applyFilter" : [ "filterName", "filterMute" ],
+	"allowOverride" : [ "allowOverLock" ]
 };
 
 function log(message) { console.log("[LBNG] " + message); }
@@ -193,6 +194,7 @@ function saveOptions(event) {
 		let limitOffset = $(`#limitOffset${set}`).val();
 		let delaySecs = $(`#delaySecs${set}`).val();
 		let reloadSecs = $(`#reloadSecs${set}`).val();
+		let waitSecs = $(`#waitSecs${set}`).val();
 		let blockURL = $(`#blockURL${set}`).val();
 
 		// Check field values
@@ -226,6 +228,12 @@ function saveOptions(event) {
 			$("#alertBadSeconds").dialog("open");
 			return false;
 		}
+		if (!checkPosIntFormat(waitSecs)) {
+			$("#tabs").tabs("option", "active", (set - 1));
+			$(`#waitSecs${set}`).focus();
+			$("#alertBadSeconds").dialog("open");
+			return false;
+		}
 		if (!checkBlockURLFormat(blockURL)) {
 			$("#tabs").tabs("option", "active", (set - 1));
 			$(`#blockURL${set}`).focus();
@@ -254,6 +262,13 @@ function saveOptions(event) {
 		$("#tabs").tabs("option", "active", gNumSets);
 		$("#overrideMins").focus();
 		$("#alertBadMinutes").dialog("open");
+		return false;
+	}
+	let overrideLimitNum = $("#overrideLimitNum").val();
+	if (!checkPosIntFormat(overrideLimitNum)) {
+		$("#tabs").tabs("option", "active", gNumSets);
+		$("#overrideLimitNum").focus();
+		$("#alertBadOverrideLimitNum").dialog("open");
 		return false;
 	}
 	let warnSecs = $("#warnSecs").val();
@@ -818,14 +833,25 @@ function exportOptions() {
 		}
 	}
 
+	if (gIsAndroid) {
+		lines.unshift("### Select all -> Share -> Drive\n\n");
+		lines.unshift("### Save this file to Google Drive:\n");
+	}
+
 	// Create blob and download it
 	let blob = new Blob(lines, { type: "text/plain", endings: "native" });
 	let url = URL.createObjectURL(blob);
-	let downloadOptions = { url: url, filename: DEFAULT_OPTIONS_FILE };
-	if (!gIsAndroid) {
-		downloadOptions.saveAs = true;
+	if (gIsAndroid) {
+		// Workaround for Android: open blob in new tab
+		browser.tabs.create({ url: url });
+	} else {
+		let downloadOptions = {
+			url: url,
+			filename: DEFAULT_OPTIONS_FILE,
+			saveAs: true
+		};
+		browser.downloads.download(downloadOptions).then(onSuccess, onError);
 	}
-	browser.downloads.download(downloadOptions).then(onSuccess, onError);
 
 	function onSuccess() {
 		$("#alertExportSuccess").dialog("open");
@@ -1103,10 +1129,11 @@ function disableImportOptions() {
 //
 function updateSubOptions(set) {
 	for (let name in SUB_OPTIONS) {
-		let subname = SUB_OPTIONS[name];
-		let comp1 = getElement(`${name}${set}`);
-		let comp2 = getElement(`${subname}${set}`);
-		comp2.disabled = comp1.disabled || !comp1.checked;
+		for (let subname of SUB_OPTIONS[name]) {
+			let comp1 = getElement(`${name}${set}`);
+			let comp2 = getElement(`${subname}${set}`);
+			comp2.disabled = comp1.disabled || !comp1.checked;
+		}
 	}
 }
 
